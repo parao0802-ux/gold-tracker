@@ -217,9 +217,52 @@
   /* ── 과거 금시세 ─────────────────────────────────────────────
      폴란드 중앙은행(NBP)이 LBMA 고시가를 매일 PLN/g(순도 1000)으로
      공개한다. 여기에 같은 날짜의 PLN→KRW 환율을 곱해 원화 시세를 만든다.
+     환율도 NBP에서 받는다 — 금 시세와 같은 호스트라 한쪽만 막히는 일이 없고,
+     frankfurter는 예비로만 둔다(일부 망에서 차단되는 사례 확인).
      둘 다 키가 필요 없고 CORS가 열려 있다.
      하루 한 번만 받아 localStorage에 캐시한다.
      ────────────────────────────────────────────────────────── */
+
+  // 어느 쪽이 실패했는지 메시지에 남긴다 — 안 그러면 'Failed to fetch'만 보인다
+  function tagged(label, promise) {
+    return promise.catch(function (e) {
+      throw new Error(label + ' — ' + (e && e.message ? e.message : e));
+    });
+  }
+
+  function fetchNbpGold(start, end) {
+    return tagged('NBP 금 고시가',
+      getJSON('https://api.nbp.pl/api/cenyzlota/' + start + '/' + end + '?format=json')
+    ).then(function (d) {
+      if (!Array.isArray(d) || !d.length) throw new Error('NBP 금 고시가 — 응답이 비어 있습니다');
+      return d;
+    });
+  }
+
+  // PLN 1당 KRW의 일별 시세를 { 'YYYY-MM-DD': rate } 로 돌려준다
+  function fetchPlnKrw(start, end) {
+    return getJSON('https://api.nbp.pl/api/exchangerates/rates/a/krw/' + start + '/' + end + '/?format=json')
+      .then(function (d) {
+        var map = {};
+        (d && d.rates || []).forEach(function (r) {
+          // NBP table A의 mid는 'KRW 1당 PLN'이므로 뒤집는다
+          if (r.mid > 0) map[r.effectiveDate] = 1 / r.mid;
+        });
+        if (!Object.keys(map).length) throw new Error('빈 응답');
+        return map;
+      })
+      .catch(function () {
+        return tagged('PLN→KRW 환율',
+          getJSON('https://api.frankfurter.app/' + start + '..' + end + '?base=PLN&symbols=KRW')
+        ).then(function (d) {
+          var map = {};
+          Object.keys(d && d.rates || {}).forEach(function (k) { map[k] = d.rates[k].KRW; });
+          if (!Object.keys(map).length) throw new Error('PLN→KRW 환율 — 빈 응답');
+          return map;
+        });
+      });
+  }
+
   function fetchGoldHistory() {
     if (goldHist && goldHist.fetchedOn === todayISO() &&
         goldHist.points && goldHist.points.length > 1) {
@@ -229,24 +272,20 @@
     var start = isoDaysAgo(HIST_DAYS), end = todayISO();
 
     return Promise.all([
-      getJSON('https://api.nbp.pl/api/cenyzlota/' + start + '/' + end + '?format=json'),
-      getJSON('https://api.frankfurter.app/' + start + '..' + end + '?base=PLN&symbols=KRW')
+      fetchNbpGold(start, end),
+      fetchPlnKrw(start, end)
     ]).then(function (res) {
-      var gold = res[0];
-      var fxMap = (res[1] && res[1].rates) || {};
+      var gold = res[0], fxMap = res[1];
       var fxDates = Object.keys(fxMap).sort();
-      if (!Array.isArray(gold) || !gold.length || !fxDates.length) {
-        throw new Error('시세 기록이 비어 있습니다');
-      }
 
       // 환율은 영업일에만 고시되므로, 각 날짜 이하의 가장 최근 값을 이어 쓴다
-      var rate = fxMap[fxDates[0]].KRW;
+      var rate = fxMap[fxDates[0]];
       var i = 0;
       var points = [];
 
       gold.forEach(function (row) {
         while (i < fxDates.length && fxDates[i] <= row.data) {
-          rate = fxMap[fxDates[i]].KRW;
+          rate = fxMap[fxDates[i]];
           i++;
         }
         var v = row.cena * rate;
