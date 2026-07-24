@@ -57,8 +57,8 @@
     --series-1:       #3987e5;
     --series-2:       #d95926;
     --series-gold:    #eda100;
-    --good:           #0ca30c;
-    --good-mark:      #0ca30c;
+    --up:             #e66767;
+    --down:           #3987e5;
     --bad:            #e66767;
     --accent:         #3987e5;
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 1px 12px rgba(0, 0, 0, .22);
@@ -79,7 +79,7 @@
   --border-strong:  rgba(255, 255, 255, 0.18);
   --series-1:       #3987e5;
   --series-2:       #d95926;
-  --series-gold:    #c98500;
+  --series-gold:    #eda100;
   --up:             #e66767;
   --down:           #3987e5;
   --bad:            #e66767;
