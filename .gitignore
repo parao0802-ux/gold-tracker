@@ -1,0 +1,15 @@
+# Vercel
+.vercel
+
+# Claude Code (기기별 로컬 설정)
+.claude/settings.local.json
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# 편집기
+.vscode/
+.idea/
+*.swp

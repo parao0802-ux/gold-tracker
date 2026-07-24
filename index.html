@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>금시세 · 투자현황 대시보드</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪙</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-name">금시세 트래커</span>
+    </div>
+    <div class="topbar-actions">
+      <span id="updatedAt" class="updated" aria-live="polite">시세 불러오는 중…</span>
+      <button id="refreshBtn" class="btn btn-ghost" type="button" title="시세 새로고침">
+        <span class="btn-ico" aria-hidden="true">⟳</span> 새로고침
+      </button>
+      <button id="themeBtn" class="btn btn-ghost btn-icon" type="button" title="라이트/다크 전환" aria-label="라이트/다크 전환">◐</button>
+    </div>
+  </div>
+</header>
+
+<div id="banner" class="banner" hidden></div>
+
+<main class="wrap">
+
+  <!-- ── 실시간 시세 ────────────────────────────────────────── -->
+  <section class="section" aria-labelledby="h-price">
+    <div class="section-head">
+      <h2 id="h-price">실시간 국제 시세</h2>
+      <p class="section-sub">국제 현물가(USD/트로이온스)를 원화로 환산한 값입니다. 국내 판매가는 여기에 세공비·부가세가 붙습니다.</p>
+    </div>
+    <figure class="card chart-card price-chart">
+      <figcaption class="card-head">
+        <div>
+          <h3 class="card-title">순금 1g 원화 시세</h3>
+          <p class="card-sub" id="goldTrendSub">불러오는 중…</p>
+        </div>
+        <div class="seg" role="group" aria-label="기간 선택">
+          <button type="button" class="seg-btn" data-range="30">1개월</button>
+          <button type="button" class="seg-btn" data-range="90">3개월</button>
+          <button type="button" class="seg-btn is-on" data-range="365">1년</button>
+        </div>
+      </figcaption>
+      <div class="chart-host chart-host-price" id="goldTrendHost"></div>
+      <div class="chart-empty" id="goldTrendEmpty">시세 기록을 불러오는 중…</div>
+    </figure>
+
+    <div class="price-grid">
+      <article class="price-card price-card-lead">
+        <div class="price-label">순금 24K · 1g</div>
+        <div class="price-value" id="pxGoldG">—</div>
+        <div class="price-meta" id="pxGoldGSub">&nbsp;</div>
+      </article>
+      <article class="price-card">
+        <div class="price-label">순금 24K · 1돈 (3.75g)</div>
+        <div class="price-value" id="pxGoldDon">—</div>
+        <div class="price-meta" id="pxGoldDonSub">&nbsp;</div>
+      </article>
+      <article class="price-card">
+        <div class="price-label">은 · 1g</div>
+        <div class="price-value" id="pxSilverG">—</div>
+        <div class="price-meta" id="pxSilverGSub">&nbsp;</div>
+      </article>
+      <article class="price-card">
+        <div class="price-label">원/달러 환율</div>
+        <div class="price-value" id="pxFx">—</div>
+        <div class="price-meta" id="pxFxSub">&nbsp;</div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ── 대시보드 ──────────────────────────────────────────── -->
+  <section class="section" aria-labelledby="h-dash">
+    <div class="section-head">
+      <h2 id="h-dash">투자 현황</h2>
+    </div>
+
+    <div class="hero-row">
+      <div class="hero">
+        <div class="hero-label">현재 평가액</div>
+        <div class="hero-value" id="heroValue">₩0</div>
+        <div class="hero-delta" id="heroDelta">기록을 추가하면 손익이 계산됩니다</div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat">
+          <div class="stat-label">투자 원금</div>
+          <div class="stat-value" id="statCost">₩0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">평가 손익</div>
+          <div class="stat-value" id="statPl">₩0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">수익률</div>
+          <div class="stat-value" id="statRoi">0.0%</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">보유 순금 환산</div>
+          <div class="stat-value" id="statWeight">0g</div>
+          <div class="stat-sub" id="statWeightSub">&nbsp;</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">평균 매입가 (순금 1g)</div>
+          <div class="stat-value" id="statAvg">—</div>
+          <div class="stat-sub" id="statAvgSub">&nbsp;</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">본전 시세 (순금 1돈)</div>
+          <div class="stat-value" id="statBreakeven">—</div>
+          <div class="stat-sub" id="statBreakevenSub">&nbsp;</div>
+        </div>
+      </div>
+    </div>
+
+    <figure class="card chart-card chart-block">
+      <figcaption class="card-head">
+        <div>
+          <h3 class="card-title">자산 추이</h3>
+          <p class="card-sub">이 사이트를 열어둔 동안 기록된 시세 스냅샷 기준입니다.</p>
+        </div>
+        <div class="legend" id="trendLegend">
+          <span class="legend-item"><span class="swatch swatch-line" style="--c:var(--series-1)"></span>평가액</span>
+          <span class="legend-item"><span class="swatch swatch-line" style="--c:var(--series-2)"></span>투자 원금</span>
+        </div>
+      </figcaption>
+      <div class="chart-host" id="trendHost"></div>
+      <div class="chart-empty" id="trendEmpty">
+        아직 기록된 스냅샷이 없습니다. 새로고침할 때마다 시세가 한 점씩 쌓이고, 두 점부터 그래프가 그려집니다.
+      </div>
+    </figure>
+
+    <figure class="card chart-card chart-block" id="lotsCard" hidden>
+      <figcaption class="card-head">
+        <div>
+          <h3 class="card-title">건별 수익률</h3>
+          <p class="card-sub">0%를 기준으로 오른쪽은 이익, 왼쪽은 손실입니다. 금액은 아래 표에 있습니다.</p>
+        </div>
+      </figcaption>
+      <div class="chart-host chart-host-auto" id="lotsHost"></div>
+      <div class="chart-empty" id="lotsEmpty" hidden></div>
+    </figure>
+  </section>
+
+  <!-- ── 매수 기록 ─────────────────────────────────────────── -->
+  <section class="section" aria-labelledby="h-add">
+    <div class="section-head">
+      <h2 id="h-add">매수 기록</h2>
+      <p class="section-sub">브라우저에만 저장됩니다. 서버로 전송되지 않습니다.</p>
+    </div>
+
+    <form class="card form-card" id="buyForm" autocomplete="off">
+      <input type="hidden" id="editId" value="">
+      <div class="form-grid">
+        <label class="field">
+          <span class="field-label">매수일</span>
+          <input type="date" id="fDate" required>
+        </label>
+        <label class="field">
+          <span class="field-label">품목</span>
+          <select id="fMetal">
+            <option value="gold">금</option>
+            <option value="silver">은</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="field-label">순도</span>
+          <select id="fPurity">
+            <option value="0.999">24K (999)</option>
+            <option value="0.9167">22K (916)</option>
+            <option value="0.75">18K (750)</option>
+            <option value="0.585">14K (585)</option>
+            <option value="0.925">스털링 실버 (925)</option>
+            <option value="1">순도 100% 기준</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="field-label">수량</span>
+          <input type="number" id="fQty" step="any" min="0" placeholder="예: 3.75" required>
+        </label>
+        <label class="field">
+          <span class="field-label">단위</span>
+          <select id="fUnit">
+            <option value="don">돈 (3.75g)</option>
+            <option value="g">그램 (g)</option>
+            <option value="oz">트로이온스 (oz)</option>
+            <option value="kg">킬로그램 (kg)</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="field-label">총 매수 금액 (원)</span>
+          <input type="number" id="fCost" step="1" min="0" placeholder="예: 1250000" required>
+        </label>
+        <label class="field field-wide">
+          <span class="field-label">메모 <span class="field-opt">(선택)</span></span>
+          <input type="text" id="fMemo" maxlength="60" placeholder="예: 한국금거래소 골드바">
+        </label>
+      </div>
+      <div class="form-foot">
+        <p class="form-hint" id="formHint">&nbsp;</p>
+        <div class="form-btns">
+          <button type="button" class="btn btn-ghost" id="cancelEdit" hidden>취소</button>
+          <button type="submit" class="btn btn-primary" id="submitBtn">기록 추가</button>
+        </div>
+      </div>
+    </form>
+
+    <div class="card table-card">
+      <div class="card-head">
+        <h3 class="card-title">보유 내역 <span class="count" id="rowCount">0건</span></h3>
+        <div class="table-actions">
+          <button type="button" class="btn btn-ghost btn-sm" id="exportJson">JSON 내보내기</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="exportCsv">CSV 내보내기</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="importBtn">가져오기</button>
+          <input type="file" id="importFile" accept="application/json,.json" hidden>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th scope="col">매수일</th>
+              <th scope="col">품목</th>
+              <th scope="col" class="num">수량</th>
+              <th scope="col" class="num">순금 환산</th>
+              <th scope="col" class="num">매수금액</th>
+              <th scope="col" class="num">평가액</th>
+              <th scope="col" class="num">손익</th>
+              <th scope="col" class="num">수익률</th>
+              <th scope="col"><span class="sr-only">작업</span></th>
+            </tr>
+          </thead>
+          <tbody id="tblBody"></tbody>
+          <tfoot id="tblFoot" hidden>
+            <tr>
+              <th scope="row" colspan="4">합계</th>
+              <td class="num" id="sumCost"></td>
+              <td class="num" id="sumValue"></td>
+              <td class="num" id="sumPl"></td>
+              <td class="num" id="sumRoi"></td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <p class="table-empty" id="tableEmpty">아직 기록이 없습니다. 위 양식으로 첫 매수를 입력해 보세요.</p>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <p>시세 출처: gold-api.com (XAU/XAG 현물), frankfurter.app · open.er-api.com (환율), nbp.pl (과거 금 고시가, LBMA 기준). 국제 현물가 기준이며 국내 소매 매입·매도가와는 차이가 있습니다. 투자 판단의 근거로 사용하지 마세요.</p>
+    <p>모든 기록은 이 브라우저의 localStorage에만 저장됩니다. <button type="button" class="linkbtn" id="resetAll">전체 데이터 삭제</button></p>
+  </footer>
+</main>
+
+<div id="tooltip" class="tooltip" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>
