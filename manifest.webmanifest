@@ -1,0 +1,15 @@
+{
+  "name": "금시세 트래커",
+  "short_name": "금시세",
+  "description": "국제 금·은 시세와 내 투자 현황을 한눈에 보는 대시보드",
+  "lang": "ko",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#f9f9f7",
+  "theme_color": "#f9f9f7",
+  "icons": [
+    { "src": "icons/icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any maskable" },
+    { "src": "icons/icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any maskable" }
+  ]
+}
