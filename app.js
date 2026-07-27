@@ -370,6 +370,45 @@
     return out;
   }
 
+  // 전일 종가(NBP 고시가 기준) — goldHist엔 오늘 이전 날짜 중 가장 최근 값만 쓴다
+  function yesterdayGoldClose() {
+    if (!goldHist || !goldHist.points) return null;
+    var today = todayISO();
+    var pts = goldHist.points;
+    for (var i = pts.length - 1; i >= 0; i--) {
+      if (pts[i].d < today) return pts[i].v;
+    }
+    return null;
+  }
+
+  // 은·환율은 전일 고시가가 없어 로컬 스냅샷 중 하루 전과 가장 가까운 것으로 대신한다
+  function snapshotAround(msAgo, tolMs) {
+    if (!snapshots.length) return null;
+    var target = Date.now() - msAgo;
+    var best = null, bestDiff = Infinity;
+    for (var i = 0; i < snapshots.length; i++) {
+      var dd = Math.abs(snapshots[i].t - target);
+      if (dd < bestDiff) { bestDiff = dd; best = snapshots[i]; }
+    }
+    return (best && bestDiff <= tolMs) ? best : null;
+  }
+
+  // 시세 아래에 "전일 대비" 문구를 덧붙인다 (기준값이 없으면 원래 텍스트만 남긴다)
+  function appendDayDiff(el, baseText, curr, prev, unit) {
+    el.textContent = '';
+    el.appendChild(document.createTextNode(baseText));
+    if (prev == null || !isFinite(prev) || prev === 0 || curr == null || !isFinite(curr)) return;
+    var diff = curr - prev;
+    var pct = (diff / prev) * 100;
+    el.appendChild(document.createTextNode(' · '));
+    var span = document.createElement('span');
+    span.className = clsFor(diff);
+    var s = diff > 0 ? '+' : diff < 0 ? '−' : '';
+    var amount = unit === 'won2' ? (num(Math.abs(diff), 2) + '원') : ('₩' + num(Math.abs(diff), 0));
+    span.textContent = '전일 대비 ' + s + amount + ' (' + signedPct(pct) + ')';
+    el.appendChild(span);
+  }
+
   // ── 렌더: 시세 패널 ────────────────────────────────────────
   function renderPrices() {
     var rates = currentRates();
@@ -379,23 +418,28 @@
       return;
     }
 
+    var yGold = yesterdayGoldClose();
+    var ySnap = snapshotAround(24 * 3600 * 1000, 8 * 3600 * 1000);
+
     if (rates && rates.gold != null) {
       $('pxGoldG').textContent = won(rates.gold);
-      $('pxGoldGSub').textContent = '$' + num(prices.goldUsdOz, 2) + ' / oz';
+      appendDayDiff($('pxGoldGSub'), '$' + num(prices.goldUsdOz, 2) + ' / oz', rates.gold, yGold);
       $('pxGoldDon').textContent = won(rates.gold * DON_G);
-      $('pxGoldDonSub').textContent = '1돈 = 3.75g 환산';
+      appendDayDiff($('pxGoldDonSub'), '1돈 = 3.75g 환산', rates.gold * DON_G, yGold == null ? null : yGold * DON_G);
     }
     if (rates && rates.silver != null) {
       $('pxSilverG').textContent = won(rates.silver);
-      $('pxSilverGSub').textContent = '$' + num(prices.silverUsdOz, 2) + ' / oz';
+      appendDayDiff($('pxSilverGSub'), '$' + num(prices.silverUsdOz, 2) + ' / oz',
+        rates.silver, ySnap ? ySnap.s : null);
     }
 
     $('pxFx').textContent = num(prices.fx, 2) + '원';
-    $('pxFxSub').textContent = (prices.fxSource || '') + (prices.fxDate ? ' · ' + prices.fxDate : '');
+    appendDayDiff($('pxFxSub'), (prices.fxSource || '') + (prices.fxDate ? ' · ' + prices.fxDate : ''),
+      prices.fx, ySnap ? ySnap.fx : null, 'won2');
 
     var d = new Date(prices.at);
-    var hhmm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-    $('updatedAt').textContent = hhmm + ' 기준';
+    var hhmmStr = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    $('updatedAt').textContent = hhmmStr + ' 기준';
   }
 
   // ── 렌더: 대시보드 ─────────────────────────────────────────
@@ -583,7 +627,25 @@
     return p(d.getHours()) + ':' + p(d.getMinutes());
   }
 
-  var RANGE_LABEL = { 30: '최근 1개월', 90: '최근 3개월', 365: '최근 1년' };
+  var RANGE_LABEL = { day: '오늘', 30: '최근 1개월', 90: '최근 3개월', 365: '최근 1년' };
+
+  function hhmm(t) {
+    var d = new Date(t);
+    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+
+  // 오늘 기록된 스냅샷만 골라 시간대별 시세 포인트로 바꾼다
+  function todaySnapshotPoints() {
+    var today = todayISO();
+    return snapshots
+      .filter(function (s) { return s.g != null && isoOf(s.t) === today; })
+      .map(function (s) { return { t: s.t, v: s.g, d: today }; });
+  }
+
+  function isoOf(ts) {
+    var d = new Date(ts);
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  }
 
   // ── 금시세 추이 (단일 계열 + 면 워시) ───────────────────────
   function renderGoldTrend() {
@@ -592,28 +654,37 @@
     var sub = $('goldTrendSub');
     host.textContent = '';
 
+    var isDay = goldRange === 'day';
     var pts = [];
-    if (goldHist && goldHist.points) {
-      var cutoff = isoDaysAgo(goldRange);
-      pts = goldHist.points
-        .filter(function (p) { return p.d >= cutoff; })
-        .map(function (p) {
-          return { t: new Date(p.d + 'T00:00:00').getTime(), v: p.v, d: p.d };
-        });
-    }
-
-    // NBP 고시가는 하루 늦으므로 실시간 시세를 마지막 점으로 얹는다
     var rates = currentRates();
-    if (pts.length && rates && rates.gold != null) {
-      var today = todayISO();
-      var live = { t: Date.now(), v: rates.gold, d: today, live: true };
-      if (pts[pts.length - 1].d >= today) pts[pts.length - 1] = live;
-      else pts.push(live);
+
+    if (isDay) {
+      pts = todaySnapshotPoints();
+    } else {
+      if (goldHist && goldHist.points) {
+        var cutoff = isoDaysAgo(goldRange);
+        pts = goldHist.points
+          .filter(function (p) { return p.d >= cutoff; })
+          .map(function (p) {
+            return { t: new Date(p.d + 'T00:00:00').getTime(), v: p.v, d: p.d };
+          });
+      }
+
+      // NBP 고시가는 하루 늦으므로 실시간 시세를 마지막 점으로 얹는다
+      if (pts.length && rates && rates.gold != null) {
+        var today = todayISO();
+        var live = { t: Date.now(), v: rates.gold, d: today, live: true };
+        if (pts[pts.length - 1].d >= today) pts[pts.length - 1] = live;
+        else pts.push(live);
+      }
     }
 
     if (pts.length < 2) {
       host.hidden = true;
       empty.hidden = false;
+      empty.textContent = isDay
+        ? '오늘 기록된 시세가 아직 부족합니다 — 앱을 열어 둔 채로 새로고침될 때마다(자동 1분) 한 점씩 쌓입니다.'
+        : '시세 기록을 불러오는 중…';
       return;
     }
     host.hidden = false;
@@ -628,7 +699,7 @@
     chgEl.className = clsFor(chg);
     chgEl.textContent = signedPct(chg);
     sub.appendChild(chgEl);
-    sub.appendChild(document.createTextNode(' · ' + pts[0].d + ' 이후'));
+    sub.appendChild(document.createTextNode(isDay ? (' · ' + hhmm(pts[0].t) + ' 이후') : (' · ' + pts[0].d + ' 이후')));
 
     var W = host.clientWidth || 640;
     var H = host.clientHeight || 220;
@@ -681,7 +752,7 @@
         'text-anchor': i === 0 ? 'start' : i === xTicks ? 'end' : 'middle',
         fill: 'var(--text-muted)', 'font-size': 11
       });
-      lbx.textContent = fmtDay(tt, spanDays);
+      lbx.textContent = isDay ? hhmm(tt) : fmtDay(tt, spanDays);
       svg.appendChild(lbx);
     }
 
@@ -739,7 +810,7 @@
       cross.setAttribute('x1', x); cross.setAttribute('x2', x); cross.setAttribute('opacity', 1);
       dot.setAttribute('cx', x); dot.setAttribute('cy', Y(p.v)); dot.setAttribute('opacity', 1);
 
-      showTooltip(clientX, clientY, p.d + (p.live ? ' (실시간)' : ''), [
+      showTooltip(clientX, clientY, isDay ? (p.d + ' ' + hhmm(p.t)) : (p.d + (p.live ? ' (실시간)' : '')), [
         { color: 'var(--series-gold)', key: '1g', val: won(p.v) },
         { color: null, key: '1돈', val: won(p.v * DON_G) }
       ]);
@@ -1355,7 +1426,8 @@
 
     Array.prototype.forEach.call(document.querySelectorAll('.seg-btn'), function (btn) {
       btn.addEventListener('click', function () {
-        goldRange = parseInt(btn.getAttribute('data-range'), 10);
+        var r = btn.getAttribute('data-range');
+        goldRange = r === 'day' ? 'day' : parseInt(r, 10);
         Array.prototype.forEach.call(document.querySelectorAll('.seg-btn'), function (b) {
           b.classList.toggle('is-on', b === btn);
         });
@@ -1409,7 +1481,7 @@
     refreshPrices(false);
 
     fetchGoldHistory()
-      .then(renderGoldTrend)
+      .then(function () { renderGoldTrend(); renderPrices(); })
       .catch(function (err) {
         $('goldTrendHost').hidden = true;
         $('goldTrendEmpty').hidden = false;
