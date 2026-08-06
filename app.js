@@ -484,6 +484,14 @@
      ────────────────────────────────────────────────────────── */
   var DOMESTIC_TTL = 10 * 60 * 1000;
 
+  /* 국내 시세는 서버리스 프록시(/api)를 거쳐야 한다 — 한국금거래소가 CORS를 막아서다.
+     그런데 PC에서 index.html을 그냥 열거나 로컬 정적 서버로 띄우면 /api가 없어
+     국내 시세만 통째로 안 나온다. 그럴 때만 배포본 API를 절대 주소로 부른다. */
+  var PROD_ORIGIN = 'https://gold-tracker-parao0802.vercel.app';
+  var API_BASE = (location.protocol === 'file:' ||
+                  /^(localhost|127\.0\.0\.1|::1|)$/.test(location.hostname))
+    ? PROD_ORIGIN : '';
+
   // 고시가는 1돈(3.75g) 기준으로 내려온다 — 화면 기본 단위는 1g이라 나눠 쓴다
   function perGram(don) { return don == null ? null : don / DON_G; }
 
@@ -491,7 +499,7 @@
     if (domestic && domestic.fetchedAt && Date.now() - domestic.fetchedAt < DOMESTIC_TTL) {
       return Promise.resolve();
     }
-    return getJSON('/api/domestic-gold').then(function (d) {
+    return getJSON(API_BASE + '/api/domestic-gold').then(function (d) {
       if (!d || d.error || !d.sell) throw new Error(d && d.error ? d.error : '고시가 응답 형식 오류');
       d.fetchedAt = Date.now();
       domestic = d;
@@ -505,7 +513,7 @@
         domHist.points && domHist.points.length > 1) {
       return Promise.resolve();
     }
-    return getJSON('/api/domestic-gold?range=year').then(function (d) {
+    return getJSON(API_BASE + '/api/domestic-gold?range=year').then(function (d) {
       var pts = (d && d.history) || [];
       if (pts.length < 2) throw new Error('국내 시세 기록이 부족합니다');
       domHist = { fetchedOn: todayISO(), points: pts };

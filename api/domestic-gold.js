@@ -45,6 +45,11 @@ async function fetchRange(startDate, endDate) {
 }
 
 module.exports = async (req, res) => {
+  /* 공개된 시세 데이터라 출처를 가리지 않고 열어 둔다.
+     로컬에서 index.html을 직접 열었을 때도 국내 시세가 보이게 하려는 것.
+     (인증·개인정보가 없는 응답이라 * 로 열어도 노출될 게 없다) */
+  res.setHeader('Access-Control-Allow-Origin', '*');
+
   try {
     const now = new Date();
     const year = String(req.query && req.query.range) === 'year';
