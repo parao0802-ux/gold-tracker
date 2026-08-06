@@ -20,6 +20,7 @@
     prices:    'gold2.prices',
     goldHist:  'gold2.goldHistory',
     domestic:  'gold2.domestic',
+    domHist:   'gold2.domesticHistory',
     theme:     'gold2.theme'
   };
 
@@ -35,6 +36,7 @@
   var prices    = load(LS.prices, null);
   var goldHist  = load(LS.goldHist, null);
   var domestic  = load(LS.domestic, null);
+  var domHist   = load(LS.domHist, null);
   var goldRange = 365;
   var editingId = null;
   var refreshTimer = null;
@@ -205,7 +207,9 @@
       recordSnapshot();
       banner('');
       renderAll();
-      fetchDomestic().then(renderDomestic).catch(function () {});
+      fetchDomestic()
+        .then(function () { renderDomestic(); renderGoldTrend(); })
+        .catch(function () {});
     }).catch(function (err) {
       banner('시세를 불러오지 못했습니다 (' + err.message + '). ' +
              (prices ? '마지막으로 받은 시세로 표시합니다.' : '네트워크 연결을 확인해 주세요.'));
@@ -400,10 +404,14 @@
   function appendDayDiff(el, baseText, curr, prev, unit) {
     el.textContent = '';
     el.appendChild(document.createTextNode(baseText));
-    if (prev == null || !isFinite(prev) || prev === 0 || curr == null || !isFinite(curr)) return;
+    if (prev == null || !isFinite(prev) || prev === 0 || curr == null || !isFinite(curr)) {
+      // 기준값이 없으면 칸이 접히지 않게 공백이라도 남긴다
+      if (!baseText) el.textContent = ' ';
+      return;
+    }
     var diff = curr - prev;
     var pct = (diff / prev) * 100;
-    el.appendChild(document.createTextNode(' · '));
+    if (baseText) el.appendChild(document.createTextNode(' · '));
     var span = document.createElement('span');
     span.className = clsFor(diff);
     var s = diff > 0 ? '+' : diff < 0 ? '−' : '';
@@ -451,6 +459,9 @@
      ────────────────────────────────────────────────────────── */
   var DOMESTIC_TTL = 10 * 60 * 1000;
 
+  // 고시가는 1돈(3.75g) 기준으로 내려온다 — 화면 기본 단위는 1g이라 나눠 쓴다
+  function perGram(don) { return don == null ? null : don / DON_G; }
+
   function fetchDomestic() {
     if (domestic && domestic.fetchedAt && Date.now() - domestic.fetchedAt < DOMESTIC_TTL) {
       return Promise.resolve();
@@ -463,6 +474,20 @@
     });
   }
 
+  // 차트용 일별 이력 — 하루 한 번만 받는다
+  function fetchDomesticHistory() {
+    if (domHist && domHist.fetchedOn === todayISO() &&
+        domHist.points && domHist.points.length > 1) {
+      return Promise.resolve();
+    }
+    return getJSON('/api/domestic-gold?range=year').then(function (d) {
+      var pts = (d && d.history) || [];
+      if (pts.length < 2) throw new Error('국내 시세 기록이 부족합니다');
+      domHist = { fetchedOn: todayISO(), points: pts };
+      save(LS.domHist, domHist);
+    });
+  }
+
   function renderDomestic() {
     if (!domestic || !domestic.sell) return;
 
@@ -472,31 +497,36 @@
 
     $('dxAt').textContent = domestic.at ? domestic.at.slice(5, 16) + ' 고시' : '';
 
-    $('dxBuyPure').textContent = won(buy.pure);
-    $('dxBuyPureSub').textContent = buy.pure ? '1g당 ' + won(buy.pure / DON_G) : ' ';
+    // 1g을 크게, 1돈은 아래에 따로
+    $('dxBuyPure').textContent = won(perGram(buy.pure));
+    $('dxBuyPureDon').textContent = buy.pure ? '1돈(3.75g) ' + won(buy.pure) : ' ';
+    $('dxBuyPureDiff').textContent = ' ';
 
-    $('dxSellPure').textContent = won(sell.pure);
-    appendDayDiff($('dxSellPureSub'), '1g당 ' + won(sell.pure / DON_G),
-      sell.pure, prev ? prev.pure : null);
+    $('dxSellPure').textContent = won(perGram(sell.pure));
+    $('dxSellPureDon').textContent = '1돈(3.75g) ' + won(sell.pure);
+    appendDayDiff($('dxSellPureDiff'), '', perGram(sell.pure), perGram(prev ? prev.pure : null));
+
+    $('dxSellSilver').textContent = won(perGram(sell.silver));
+    $('dxSellSilverDon').textContent = '1돈(3.75g) ' + won(sell.silver);
+    appendDayDiff($('dxSellSilverDiff'), '', perGram(sell.silver), perGram(prev ? prev.silver : null));
 
     // 국제 현물가와의 괴리 — 세공비가 안 붙은 '팔 때'로 비교해야 의미가 있다
     var rates = currentRates();
     var gapEl = $('dxGap');
     if (rates && rates.gold != null) {
-      var intlDon = rates.gold * DON_G;
-      var gap = ((sell.pure - intlDon) / intlDon) * 100;
+      var intlG = rates.gold;
+      var sellG = perGram(sell.pure);
+      var gap = ((sellG - intlG) / intlG) * 100;
       gapEl.textContent = signedPct(gap);
       gapEl.className = 'price-value ' + clsFor(gap);
-      $('dxGapSub').textContent = '국제 ' + won(intlDon) + ' · 차액 ' + signedWon(sell.pure - intlDon);
+      $('dxGapSub').textContent = '국제 1g ' + won(intlG);
+      $('dxGapSub2').textContent = '차액 ' + signedWon(sellG - intlG) + '/g';
     } else {
       gapEl.textContent = '—';
       gapEl.className = 'price-value';
       $('dxGapSub').textContent = ' ';
+      $('dxGapSub2').textContent = ' ';
     }
-
-    $('dxSellSilver').textContent = won(sell.silver);
-    appendDayDiff($('dxSellSilverSub'), '18K ' + won(sell.k18) + ' · 14K ' + won(sell.k14),
-      sell.silver, prev ? prev.silver : null);
   }
 
   // ── 렌더: 대시보드 ─────────────────────────────────────────
@@ -691,17 +721,16 @@
     return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
   }
 
-  // 오늘 기록된 스냅샷만 골라 시간대별 시세 포인트로 바꾼다
-  function todaySnapshotPoints() {
-    var today = todayISO();
-    return snapshots
-      .filter(function (s) { return s.g != null && isoOf(s.t) === today; })
-      .map(function (s) { return { t: s.t, v: s.g, d: today }; });
-  }
-
-  function isoOf(ts) {
-    var d = new Date(ts);
-    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  // 오늘 고시된 국내 시세를 시간대별 포인트로 바꾼다 (원본이 시각까지 준다)
+  function todayDomesticPoints() {
+    if (!domestic || !domestic.today) return [];
+    return domestic.today.map(function (x) {
+      return {
+        t: new Date(String(x.t).replace(' ', 'T')).getTime(),
+        v: perGram(x.p),
+        d: String(x.t).slice(0, 10)
+      };
+    }).filter(function (p) { return isFinite(p.t) && isFinite(p.v); });
   }
 
   // ── 금시세 추이 (단일 계열 + 면 워시) ───────────────────────
@@ -713,24 +742,24 @@
 
     var isDay = goldRange === 'day';
     var pts = [];
-    var rates = currentRates();
+    var curG = domestic && domestic.sell ? perGram(domestic.sell.pure) : null;
 
     if (isDay) {
-      pts = todaySnapshotPoints();
+      pts = todayDomesticPoints();
     } else {
-      if (goldHist && goldHist.points) {
+      if (domHist && domHist.points) {
         var cutoff = isoDaysAgo(goldRange);
-        pts = goldHist.points
+        pts = domHist.points
           .filter(function (p) { return p.d >= cutoff; })
           .map(function (p) {
-            return { t: new Date(p.d + 'T00:00:00').getTime(), v: p.v, d: p.d };
+            return { t: new Date(p.d + 'T00:00:00').getTime(), v: perGram(p.p), d: p.d };
           });
       }
 
-      // NBP 고시가는 하루 늦으므로 실시간 시세를 마지막 점으로 얹는다
-      if (pts.length && rates && rates.gold != null) {
+      // 이력 캐시가 오늘 것보다 오래됐을 수 있으니 현재 고시가를 마지막 점으로 얹는다
+      if (pts.length && curG != null) {
         var today = todayISO();
-        var live = { t: Date.now(), v: rates.gold, d: today, live: true };
+        var live = { t: Date.now(), v: curG, d: today, live: true };
         if (pts[pts.length - 1].d >= today) pts[pts.length - 1] = live;
         else pts.push(live);
       }
@@ -740,8 +769,8 @@
       host.hidden = true;
       empty.hidden = false;
       empty.textContent = isDay
-        ? '오늘 기록된 시세가 아직 부족합니다 — 앱을 열어 둔 채로 새로고침될 때마다(자동 1분) 한 점씩 쌓입니다.'
-        : '시세 기록을 불러오는 중…';
+        ? '오늘 고시된 시세가 아직 한 번뿐입니다. 하루에 몇 차례만 고시되므로 오후에 다시 확인해 주세요.'
+        : '국내 시세 기록을 불러오는 중…';
       return;
     }
     host.hidden = false;
@@ -778,7 +807,7 @@
 
     var svg = svgEl('svg', {
       width: W, height: H, viewBox: '0 0 ' + W + ' ' + H,
-      role: 'img', 'aria-label': RANGE_LABEL[goldRange] + ' 순금 1g 원화 시세 추이'
+      role: 'img', 'aria-label': RANGE_LABEL[goldRange] + ' 국내 순금 1g 시세 추이 (팔 때 기준)'
     });
 
     niceTicks(lo, hi, 4).forEach(function (v) {
@@ -867,8 +896,8 @@
       cross.setAttribute('x1', x); cross.setAttribute('x2', x); cross.setAttribute('opacity', 1);
       dot.setAttribute('cx', x); dot.setAttribute('cy', Y(p.v)); dot.setAttribute('opacity', 1);
 
-      showTooltip(clientX, clientY, isDay ? (p.d + ' ' + hhmm(p.t)) : (p.d + (p.live ? ' (실시간)' : '')), [
-        { color: 'var(--series-gold)', key: '1g', val: won(p.v) },
+      showTooltip(clientX, clientY, isDay ? (p.d + ' ' + hhmm(p.t)) : (p.d + (p.live ? ' (현재 고시)' : '')), [
+        { color: 'var(--series-gold)', key: '1g 팔 때', val: won(p.v) },
         { color: null, key: '1돈', val: won(p.v * DON_G) }
       ]);
     }
@@ -1539,21 +1568,27 @@
     refreshPrices(false);
 
     fetchDomestic()
-      .then(renderDomestic)
+      .then(function () { renderDomestic(); renderGoldTrend(); })
       .catch(function (err) {
         $('dxAt').textContent = '불러오지 못함';
         console.warn('국내 시세', err);
       });
 
-    fetchGoldHistory()
-      .then(function () { renderGoldTrend(); renderPrices(); })
+    fetchDomesticHistory()
+      .then(renderGoldTrend)
       .catch(function (err) {
         $('goldTrendHost').hidden = true;
         $('goldTrendEmpty').hidden = false;
         $('goldTrendEmpty').textContent =
-          '과거 시세를 불러오지 못했습니다 (' + err.message + '). 아래 현재 시세는 정상입니다.';
+          '국내 과거 시세를 불러오지 못했습니다 (' + err.message + '). 아래 현재 시세는 정상입니다.';
         $('goldTrendSub').textContent = '—';
       });
+
+    // NBP 이력은 이제 차트가 아니라 '국제 시세 전일 대비'에만 쓰인다.
+    // 실패해도 국내 차트를 건드리면 안 된다.
+    fetchGoldHistory()
+      .then(renderPrices)
+      .catch(function (err) { console.warn('국제 과거 시세', err); });
 
     refreshTimer = setInterval(function () {
       if (!document.hidden) refreshPrices(false);

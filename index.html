@@ -39,16 +39,17 @@
 
 <main class="wrap">
 
-  <!-- ── 실시간 시세 ────────────────────────────────────────── -->
-  <section class="section" aria-labelledby="h-price">
+  <!-- ── 국내 시세 ─────────────────────────────────────────── -->
+  <section class="section" aria-labelledby="h-domestic">
     <div class="section-head">
-      <h2 id="h-price">실시간 국제 시세</h2>
-      <p class="section-sub">국제 현물가(USD/트로이온스)를 원화로 환산한 값입니다. 국내 판매가는 여기에 세공비·부가세가 붙습니다.</p>
+      <h2 id="h-domestic">국내 금시세 <span class="count" id="dxAt"></span></h2>
+      <p class="section-sub">한국금거래소 고시가입니다. ‘살 때’는 세공비·부가세가 붙은 매장 판매가라 국제 시세보다 훨씬 높고, ‘팔 때’가 실제 금값에 가깝습니다.</p>
     </div>
+
     <figure class="card chart-card price-chart">
       <figcaption class="card-head">
         <div>
-          <h3 class="card-title">순금 1g 원화 시세</h3>
+          <h3 class="card-title">국내 순금 1g 시세 <span class="count">팔 때 기준</span></h3>
           <p class="card-sub" id="goldTrendSub">불러오는 중…</p>
         </div>
         <div class="seg" role="group" aria-label="기간 선택">
@@ -64,6 +65,41 @@
 
     <div class="price-grid">
       <article class="price-card price-card-lead">
+        <div class="price-label">순금 · 1g 살 때</div>
+        <div class="price-value" id="dxBuyPure">—</div>
+        <div class="price-meta" id="dxBuyPureDon">&nbsp;</div>
+        <div class="price-meta" id="dxBuyPureDiff">&nbsp;</div>
+      </article>
+      <article class="price-card">
+        <div class="price-label">순금 · 1g 팔 때</div>
+        <div class="price-value" id="dxSellPure">—</div>
+        <div class="price-meta" id="dxSellPureDon">&nbsp;</div>
+        <div class="price-meta" id="dxSellPureDiff">&nbsp;</div>
+      </article>
+      <article class="price-card">
+        <div class="price-label">은 · 1g 팔 때</div>
+        <div class="price-value" id="dxSellSilver">—</div>
+        <div class="price-meta" id="dxSellSilverDon">&nbsp;</div>
+        <div class="price-meta" id="dxSellSilverDiff">&nbsp;</div>
+      </article>
+      <article class="price-card">
+        <div class="price-label">국제 시세 대비 (팔 때)</div>
+        <div class="price-value" id="dxGap">—</div>
+        <div class="price-meta" id="dxGapSub">&nbsp;</div>
+        <div class="price-meta" id="dxGapSub2">&nbsp;</div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ── 실시간 국제 시세 ──────────────────────────────────── -->
+  <section class="section" aria-labelledby="h-price">
+    <div class="section-head">
+      <h2 id="h-price">실시간 국제 시세</h2>
+      <p class="section-sub">국제 현물가(USD/트로이온스)를 원화로 환산한 값입니다. 국내 판매가는 여기에 세공비·부가세가 붙습니다.</p>
+    </div>
+
+    <div class="price-grid">
+      <article class="price-card">
         <div class="price-label">순금 24K · 1g</div>
         <div class="price-value" id="pxGoldG">—</div>
         <div class="price-meta" id="pxGoldGSub">&nbsp;</div>
@@ -82,36 +118,6 @@
         <div class="price-label">원/달러 환율</div>
         <div class="price-value" id="pxFx">—</div>
         <div class="price-meta" id="pxFxSub">&nbsp;</div>
-      </article>
-    </div>
-  </section>
-
-  <!-- ── 국내 시세 ─────────────────────────────────────────── -->
-  <section class="section" aria-labelledby="h-domestic">
-    <div class="section-head">
-      <h2 id="h-domestic">국내 금시세 <span class="count" id="dxAt"></span></h2>
-      <p class="section-sub">한국금거래소 고시가입니다. ‘살 때’는 세공비·부가세가 붙은 매장 판매가라 국제 시세보다 훨씬 높고, ‘팔 때’가 실제 금값에 가깝습니다.</p>
-    </div>
-    <div class="price-grid">
-      <article class="price-card price-card-lead">
-        <div class="price-label">순금 1돈 · 살 때</div>
-        <div class="price-value" id="dxBuyPure">—</div>
-        <div class="price-meta" id="dxBuyPureSub">&nbsp;</div>
-      </article>
-      <article class="price-card">
-        <div class="price-label">순금 1돈 · 팔 때</div>
-        <div class="price-value" id="dxSellPure">—</div>
-        <div class="price-meta" id="dxSellPureSub">&nbsp;</div>
-      </article>
-      <article class="price-card">
-        <div class="price-label">국제 시세 대비 (팔 때)</div>
-        <div class="price-value" id="dxGap">—</div>
-        <div class="price-meta" id="dxGapSub">&nbsp;</div>
-      </article>
-      <article class="price-card">
-        <div class="price-label">은 1돈 · 팔 때</div>
-        <div class="price-value" id="dxSellSilver">—</div>
-        <div class="price-meta" id="dxSellSilverSub">&nbsp;</div>
       </article>
     </div>
   </section>
