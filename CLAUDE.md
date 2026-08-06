@@ -25,6 +25,11 @@
 - `sw.js`가 같은 출처 GET을 캐시하므로 **`/api/`는 캐시 제외** 처리함 (안 하면 시세가 고정됨)
 - 공식 API가 아니라 사이트 내부 엔드포인트라, 사이트 개편 시 깨질 수 있음. 깨지면 `renderDomestic()`은 조용히 넘어가고 국제 시세만 표시됨
 
+### ⚠️ 반드시 서울(icn1) 리전에서 실행할 것
+한국금거래소는 **Vercel 미국 리전(iad1) IP를 403으로 차단**한다. 로컬 curl은 헤더를 다 빼도 200이 나오는데 배포본만 403이라 헤더 문제로 오해하기 쉬움 — **IP 기반 차단**임.
+`vercel.json`의 `{"regions":["icn1"]}`가 이걸 해결한다. **이 파일을 지우거나 리전을 바꾸면 국내 시세가 즉시 죽는다.**
+(Hobby 플랜은 리전 1개만 지정 가능)
+
 ### 살 때 / 팔 때 해석 (중요)
 2026-08-06 실측: 살때 ₩857,000 · 팔때 ₩711,000 · 국제 현물 1돈 ₩731,922
 - **살 때**(매장 판매가)는 세공비·부가세가 붙어 국제 대비 약 **+17%**
@@ -53,12 +58,16 @@
 - 계정: `parao0802` (teamId `team_2MdHD6KWpCSOyyo9yzJkJbRS`), 프로젝트 `gold-tracker` (projectId `prj_WJYeh9pd9F7w2t8VjKO0e7S7suZe`)
 - **프로덕션 URL**: https://gold-tracker-parao0802.vercel.app
 
-### ⚠️ 프로덕션 코드가 저장소와 다름 (해소 진행 중)
+### GitHub 연동 완료 (2026-08-06)
+`parao0802-ux/gold-tracker` `main`에 push하면 **자동 배포됨**. 확인함 — 배포 `meta`에 `githubCommitSha`가 붙고 `lambdaRuntimeStats:{"nodejs":1}`로 서버리스 함수도 빌드됨.
+이제 `deploy_to_vercel` MCP 툴을 쓸 이유가 없음 — **그냥 push할 것.** (아래 괴리 문제도 이걸로 해소됨)
+
+### 과거 이슈: 프로덕션 코드가 저장소와 달랐던 건 (해소됨)
 - 2026-07-27 배포는 `deploy_to_vercel` MCP 툴로 파일 내용을 **인라인**해 올렸는데, `app.js`가 60KB라 인라인이 안 되어 **손으로 압축한 축약본**을 올렸음. 즉 프로덕션의 `app.js` ≠ 저장소의 `app.js` (기능은 같지만 주석·포맷이 다름)
 - 같은 이유로 `icons/icon-192.png`도 배포에서 빠짐 (`icons/icon.svg`만 사용 중)
-- **해결책 = GitHub 연동.** 연동되면 저장소 코드가 그대로 배포되어 이 괴리가 사라지고, MCP 인라인 업로드를 다시 쓸 일이 없음
-- 2026-08-06: 사용자가 Vercel↔GitHub 연결을 했다고 함. 프로젝트 `updatedAt`은 갱신됐으나 **git 트리거 배포는 아직 확인 안 됨**. 확인 방법: `list_deployments`로 배포의 `meta`에 `githubCommitSha` 등이 붙는지 볼 것 (수동 업로드 배포는 `meta: {}`)
-- MCP 툴로는 git 연결을 할 수 없음(GitHub OAuth 필요) → 대시보드에서 수동으로만 가능: https://vercel.com/parao0802/gold-tracker/settings/git
+- GitHub 연동 후 저장소 코드가 그대로 배포되어 **해소 확인함** (배포된 `app.js` 58,934 bytes = 저장소 원본)
+- `icons/icon-192.png`도 이제 정상 배포됨
+- MCP 툴로는 git 연결을 할 수 없었음(GitHub OAuth 필요) → 대시보드에서 사용자가 수동으로 연결: https://vercel.com/parao0802/gold-tracker/settings/git
 - 이 머신엔 **Node.js/npm이 없음** → `vercel` CLI, 로컬 서버리스 함수 테스트 불가. 정적 파일만 PowerShell `HttpListener`로 띄워 테스트했음
 
 ## 안드로이드 설치형 앱 관련
