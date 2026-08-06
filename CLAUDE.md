@@ -6,12 +6,31 @@
 - `index.html` — 마크업 전체 (단일 페이지)
 - `app.js` — 전체 로직 (시세 조회, 렌더링, SVG 차트, 폼) — 하나의 IIFE 안에 있음, 모듈 분리 없음
 - `styles.css` — 전체 스타일, CSS 변수로 라이트/다크 테마 토큰 관리 (`:root`, `prefers-color-scheme`, `[data-theme]`)
+- `api/domestic-gold.js` — Vercel 서버리스 함수. 한국금거래소 고시가 프록시 (아래 "국내 시세" 참고)
 - `manifest.webmanifest`, `sw.js`, `icons/` — PWA(설치형 앱) 지원
+- `apps-script/` — **이 작업과 무관한 사용자의 기존 미커밋 폴더.** 건드리지 말 것
 
 ## 데이터 흐름
 - `refreshPrices()` — 1분마다 자동 호출. gold-api.com(XAU/XAG) + frankfurter.app/open.er-api.com(USD→KRW)에서 실시간 시세를 받아 `prices`에 저장하고 `recordSnapshot()` 호출
 - `recordSnapshot()` — 매 조회 시점의 {시각, 금시세, 은시세, 환율}을 `snapshots` 배열(`localStorage['gold2.snapshots']`)에 누적. 5분 이내 재조회는 마지막 점을 덮어씀. 이 배열이 "오늘 시간대별" 차트와 "자산 추이" 차트의 데이터 원천 — **앱이 열려 있는 동안에만 쌓임** (외부에 분 단위 과거 시세 API가 없어서 그렇게 설계함)
 - `fetchGoldHistory()` — 하루 한 번, NBP(폴란드 중앙은행) API에서 최근 365일 금 고시가(PLN/g) + PLN→KRW 환율을 받아 `goldHist`(`localStorage['gold2.goldHistory']`)에 캐시. 1개월/3개월/1년 차트와 "전일 대비" 계산의 기준
+- `fetchDomestic()` — 국내 고시가. `/api/domestic-gold` 프록시를 통해 받아 `domestic`(`localStorage['gold2.domestic']`)에 10분 TTL로 캐시
+
+## 국내 시세 (한국금거래소)
+
+- 원본: `POST https://www.koreagoldx.co.kr/api/price/chart/list`, body `{srchDt:'1', type:'Au', dataDateStart:'YYYY.MM.DD', dataDateEnd:'YYYY.MM.DD'}`
+  - 응답 `list[]`는 **최신순**. 필드: `s_pure`/`p_pure`(순금 살때/팔때, **1돈=3.75g 기준**), `s_silver`/`p_silver`(은), `p_18k`, `p_14k`, `date`
+  - 하루 여러 차례 갱신됨 (공공데이터포털 "일반상품시세정보"는 하루 1회라 이쪽을 택함)
+- **CORS가 막혀 있어 브라우저에서 직접 호출 불가** (preflight 403, `Access-Control-Allow-Origin` 없음) → `api/domestic-gold.js` 서버리스 프록시 필수. 엣지에서 `s-maxage=300`으로 캐시해 원본 부하를 줄임
+- `sw.js`가 같은 출처 GET을 캐시하므로 **`/api/`는 캐시 제외** 처리함 (안 하면 시세가 고정됨)
+- 공식 API가 아니라 사이트 내부 엔드포인트라, 사이트 개편 시 깨질 수 있음. 깨지면 `renderDomestic()`은 조용히 넘어가고 국제 시세만 표시됨
+
+### 살 때 / 팔 때 해석 (중요)
+2026-08-06 실측: 살때 ₩857,000 · 팔때 ₩711,000 · 국제 현물 1돈 ₩731,922
+- **살 때**(매장 판매가)는 세공비·부가세가 붙어 국제 대비 약 **+17%**
+- **팔 때**(매장 매입가)는 딜러 마진이 빠져 국제 대비 약 **−2.9%** — 즉 "김치프리미엄"으로 국내가 항상 비싸다고 단정하면 틀림
+- 괴리율 카드는 세공비가 없는 **팔 때 기준**으로 계산함 (`renderDomestic()`)
+- 평가손익 계산 자체는 여전히 **국제 시세 기준**. 사용자가 "둘 다 보여주기"를 택해 표시만 추가한 것
 
 ## 최근 작업 (2026-07-27 세션)
 
@@ -27,14 +46,20 @@
 ### 고친 버그
 - `init()`에서 `fetchGoldHistory()` 완료 후 `renderGoldTrend()`만 다시 그렸는데, "전일 대비"가 `goldHist`에 의존하므로 `renderPrices()`도 같이 호출하도록 수정 (`app.js` 약 1483번째 줄). 안 고치면 페이지 첫 로딩 시 "전일 대비"가 1분 뒤에나 나타남.
 
-### 미커밋 상태
-`app.js`, `index.html`이 수정된 채 **커밋도 push도 안 됨** (사용자가 커밋을 명시적으로 요청하지 않아서 보류 중). 다음 세션에서 이어받으면 `git diff`로 변경 내용 확인 후 커밋 여부를 사용자에게 확인할 것.
+### 커밋 상태
+2026-08-06 기준 모두 커밋·push 완료 (`main`). git 신원은 `parao0802 / parao0802@gmail.com`.
 
 ## 배포 (Vercel)
-- 2026-07-27에 **최초로** Vercel에 배포함. 계정: `parao0802` (teamId `team_2MdHD6KWpCSOyyo9yzJkJbRS`), 프로젝트명 `gold-tracker`
+- 계정: `parao0802` (teamId `team_2MdHD6KWpCSOyyo9yzJkJbRS`), 프로젝트 `gold-tracker` (projectId `prj_WJYeh9pd9F7w2t8VjKO0e7S7suZe`)
 - **프로덕션 URL**: https://gold-tracker-parao0802.vercel.app
-- **GitHub 저장소와 연결되어 있지 않음** — `deploy_to_vercel` MCP 툴로 로컬 파일을 직접 업로드한 것. 즉 GitHub에 push해도 자동 재배포 안 됨. 다시 배포하려면 같은 MCP 툴로 파일을 다시 올리거나, Vercel 대시보드에서 이 프로젝트를 GitHub 저장소(`parao0802-ux/gold-tracker`)와 연결해야 함 (사용자에게 git 연동 여부를 물어봤으나 아직 답 없음)
-- `icons/icon-192.png`는 이번 배포에 **포함 안 됨** (base64라 용량이 커서 생략) — `icons/icon.svg`만 파비콘/매니페스트 아이콘으로 사용 중. 기능엔 지장 없으나 iOS/Android 홈 화면 아이콘 모양이 SVG 렌더링으로 나올 수 있음
+
+### ⚠️ 프로덕션 코드가 저장소와 다름 (해소 진행 중)
+- 2026-07-27 배포는 `deploy_to_vercel` MCP 툴로 파일 내용을 **인라인**해 올렸는데, `app.js`가 60KB라 인라인이 안 되어 **손으로 압축한 축약본**을 올렸음. 즉 프로덕션의 `app.js` ≠ 저장소의 `app.js` (기능은 같지만 주석·포맷이 다름)
+- 같은 이유로 `icons/icon-192.png`도 배포에서 빠짐 (`icons/icon.svg`만 사용 중)
+- **해결책 = GitHub 연동.** 연동되면 저장소 코드가 그대로 배포되어 이 괴리가 사라지고, MCP 인라인 업로드를 다시 쓸 일이 없음
+- 2026-08-06: 사용자가 Vercel↔GitHub 연결을 했다고 함. 프로젝트 `updatedAt`은 갱신됐으나 **git 트리거 배포는 아직 확인 안 됨**. 확인 방법: `list_deployments`로 배포의 `meta`에 `githubCommitSha` 등이 붙는지 볼 것 (수동 업로드 배포는 `meta: {}`)
+- MCP 툴로는 git 연결을 할 수 없음(GitHub OAuth 필요) → 대시보드에서 수동으로만 가능: https://vercel.com/parao0802/gold-tracker/settings/git
+- 이 머신엔 **Node.js/npm이 없음** → `vercel` CLI, 로컬 서버리스 함수 테스트 불가. 정적 파일만 PowerShell `HttpListener`로 띄워 테스트했음
 
 ## 안드로이드 설치형 앱 관련
 - 사용자가 "어제" 안드로이드 폰에 PWA를 설치했다고 하는데, 그 시점엔 이 프로젝트가 Vercel에 배포되기 전이라 **어떤 주소를 가리키고 있었는지 알 수 없음** (사용자도 기억 못 함). 위 프로덕션 URL로 재설치하도록 안내함.
@@ -43,3 +68,4 @@
 ## 알려진 한계 (설계상 의도된 것, 버그 아님)
 - 은/환율은 일별 공식 과거 시세 API가 없어서 "전일 대비"가 로컬 스냅샷에 의존 — 새 기기/새 브라우저에서는 한동안 표시 안 됨
 - "오늘" 차트도 같은 이유로 로컬 누적 데이터에 의존
+- 국내 시세는 `/api` 프록시가 필요해 **로컬 정적 서버에서는 404** — 콘솔에 경고만 남기고 국제 시세는 정상 동작. 실제 확인은 배포본에서 해야 함
