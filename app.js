@@ -19,6 +19,7 @@
     snapshots: 'gold2.snapshots',
     prices:    'gold2.prices',
     goldHist:  'gold2.goldHistory',
+    domestic:  'gold2.domestic',
     theme:     'gold2.theme'
   };
 
@@ -33,6 +34,7 @@
   var snapshots = load(LS.snapshots, []);
   var prices    = load(LS.prices, null);
   var goldHist  = load(LS.goldHist, null);
+  var domestic  = load(LS.domestic, null);
   var goldRange = 365;
   var editingId = null;
   var refreshTimer = null;
@@ -203,6 +205,7 @@
       recordSnapshot();
       banner('');
       renderAll();
+      fetchDomestic().then(renderDomestic).catch(function () {});
     }).catch(function (err) {
       banner('시세를 불러오지 못했습니다 (' + err.message + '). ' +
              (prices ? '마지막으로 받은 시세로 표시합니다.' : '네트워크 연결을 확인해 주세요.'));
@@ -440,6 +443,60 @@
     var d = new Date(prices.at);
     var hhmmStr = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
     $('updatedAt').textContent = hhmmStr + ' 기준';
+  }
+
+  /* ── 국내 시세 (한국금거래소) ────────────────────────────────
+     원본 API가 CORS를 막아 같은 출처의 /api/domestic-gold 프록시를 거친다.
+     고시가라 하루 몇 차례만 바뀌므로 10분 간격으로만 새로 받는다.
+     ────────────────────────────────────────────────────────── */
+  var DOMESTIC_TTL = 10 * 60 * 1000;
+
+  function fetchDomestic() {
+    if (domestic && domestic.fetchedAt && Date.now() - domestic.fetchedAt < DOMESTIC_TTL) {
+      return Promise.resolve();
+    }
+    return getJSON('/api/domestic-gold').then(function (d) {
+      if (!d || d.error || !d.sell) throw new Error(d && d.error ? d.error : '고시가 응답 형식 오류');
+      d.fetchedAt = Date.now();
+      domestic = d;
+      save(LS.domestic, domestic);
+    });
+  }
+
+  function renderDomestic() {
+    if (!domestic || !domestic.sell) return;
+
+    var buy = domestic.buy || {};
+    var sell = domestic.sell;
+    var prev = domestic.prevSell;
+
+    $('dxAt').textContent = domestic.at ? domestic.at.slice(5, 16) + ' 고시' : '';
+
+    $('dxBuyPure').textContent = won(buy.pure);
+    $('dxBuyPureSub').textContent = buy.pure ? '1g당 ' + won(buy.pure / DON_G) : ' ';
+
+    $('dxSellPure').textContent = won(sell.pure);
+    appendDayDiff($('dxSellPureSub'), '1g당 ' + won(sell.pure / DON_G),
+      sell.pure, prev ? prev.pure : null);
+
+    // 국제 현물가와의 괴리 — 세공비가 안 붙은 '팔 때'로 비교해야 의미가 있다
+    var rates = currentRates();
+    var gapEl = $('dxGap');
+    if (rates && rates.gold != null) {
+      var intlDon = rates.gold * DON_G;
+      var gap = ((sell.pure - intlDon) / intlDon) * 100;
+      gapEl.textContent = signedPct(gap);
+      gapEl.className = 'price-value ' + clsFor(gap);
+      $('dxGapSub').textContent = '국제 ' + won(intlDon) + ' · 차액 ' + signedWon(sell.pure - intlDon);
+    } else {
+      gapEl.textContent = '—';
+      gapEl.className = 'price-value';
+      $('dxGapSub').textContent = ' ';
+    }
+
+    $('dxSellSilver').textContent = won(sell.silver);
+    appendDayDiff($('dxSellSilverSub'), '18K ' + won(sell.k18) + ' · 14K ' + won(sell.k14),
+      sell.silver, prev ? prev.silver : null);
   }
 
   // ── 렌더: 대시보드 ─────────────────────────────────────────
@@ -1396,6 +1453,7 @@
 
   function renderAll() {
     renderPrices();
+    renderDomestic();
     lastSummary = summarize();
     renderDashboard(lastSummary);
     renderTable(lastSummary);
@@ -1479,6 +1537,13 @@
 
     renderAll();
     refreshPrices(false);
+
+    fetchDomestic()
+      .then(renderDomestic)
+      .catch(function (err) {
+        $('dxAt').textContent = '불러오지 못함';
+        console.warn('국내 시세', err);
+      });
 
     fetchGoldHistory()
       .then(function () { renderGoldTrend(); renderPrices(); })

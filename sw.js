@@ -27,6 +27,8 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   // 시세·환율 등 외부 API(교차 출처)는 항상 네트워크에서 최신값을 받는다.
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
+  // 같은 출처라도 /api는 시세 프록시라 캐시하면 안 된다.
+  if (new URL(req.url).pathname.startsWith('/api/')) return;
 
   // 같은 출처의 앱 셸: 캐시 우선 + 백그라운드 갱신(stale-while-revalidate).
   e.respondWith(
