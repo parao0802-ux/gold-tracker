@@ -1,6 +1,7 @@
 /* 금시세 트래커 — 서비스 워커 (앱 셸 오프라인 캐시)
-   버전을 올리면 이전 캐시를 비우고 새 셸을 받습니다. */
-const CACHE = 'gold-tracker-v1';
+   CACHE 버전을 올리면 activate 때 이전 캐시를 통째로 비운다.
+   화면이 바뀌었는데 폰에 반영이 안 될 때 여기를 올리는 게 확실한 방법이다. */
+const CACHE = 'gold-tracker-v2';
 const SHELL = [
   '.',
   'index.html',
@@ -9,6 +10,7 @@ const SHELL = [
   'manifest.webmanifest',
   'icons/icon.svg',
   'icons/icon-192.png',
+  'icons/icon-512.png',
 ];
 
 self.addEventListener('install', (e) => {
