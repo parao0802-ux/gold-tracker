@@ -136,12 +136,27 @@
 
   function krwPerGram(usdPerOz, fx) { return usdPerOz * fx / OZ_G; }
 
-  function currentRates() {
+  // 국제 현물가 기준 (원/g) — '국제 시세' 카드와 괴리율 비교에만 쓴다
+  function intlRates() {
     if (!prices || !prices.fx) return null;
     return {
       gold:   prices.goldUsdOz   ? krwPerGram(prices.goldUsdOz, prices.fx)   : null,
       silver: prices.silverUsdOz ? krwPerGram(prices.silverUsdOz, prices.fx) : null
     };
+  }
+
+  /* 평가액·손익의 기준 시세 (원/g).
+     국내 '팔 때' 고시가를 쓴다 — 지금 실제로 팔면 받는 금액이라야
+     평가손익이 의미가 있기 때문. 세공비·부가세가 붙은 '살 때'는 쓰지 않는다.
+     국내 고시가를 아직 못 받았으면 국제 현물가로 임시 대체한다. */
+  function currentRates() {
+    if (domestic && domestic.sell) {
+      return {
+        gold:   perGram(domestic.sell.pure),
+        silver: perGram(domestic.sell.silver)
+      };
+    }
+    return intlRates();
   }
 
   function rateFor(rates, metal) {
@@ -208,7 +223,7 @@
       banner('');
       renderAll();
       fetchDomestic()
-        .then(function () { renderDomestic(); renderGoldTrend(); })
+        .then(renderAll)
         .catch(function () {});
     }).catch(function (err) {
       banner('시세를 불러오지 못했습니다 (' + err.message + '). ' +
@@ -308,7 +323,7 @@
 
   // ── 스냅샷 (추이 차트의 데이터 원천) ────────────────────────
   function recordSnapshot() {
-    var rates = currentRates();
+    var rates = intlRates();
     if (!rates || rates.gold == null) return;
 
     // 다른 탭이 그 사이 쌓아둔 스냅샷을 덮어쓰지 않도록 저장소에서 다시 읽는다
@@ -321,6 +336,13 @@
       s:  rates.silver,
       fx: prices.fx
     };
+
+    // 평가 기준이 국내 '팔 때'로 바뀌었으므로 국내 시세도 같이 남긴다.
+    // 이 필드가 없는 과거 점은 국제 시세로 대체된다 (trendSeries 참고).
+    if (domestic && domestic.sell) {
+      snap.dg = perGram(domestic.sell.pure);
+      snap.ds = perGram(domestic.sell.silver);
+    }
     var last = snapshots[snapshots.length - 1];
 
     if (last && snap.t - last.t < SNAP_MERGE_MS) snapshots[snapshots.length - 1] = snap;
@@ -338,7 +360,10 @@
       for (var i = 0; i < holdings.length; i++) {
         var h = holdings[i];
         if (dateEnd(h.date) > s.t) continue;          // 아직 사기 전
-        var r = h.metal === 'silver' ? s.s : s.g;
+        // 국내 시세(dg/ds)를 우선 쓰고, 그 필드가 없는 옛 스냅샷만 국제 시세로 대체
+        var r = h.metal === 'silver'
+          ? (s.ds != null ? s.ds : s.s)
+          : (s.dg != null ? s.dg : s.g);
         if (r == null) continue;
         value += pureGrams(h) * r;
         cost  += h.cost;
@@ -422,7 +447,7 @@
 
   // ── 렌더: 시세 패널 ────────────────────────────────────────
   function renderPrices() {
-    var rates = currentRates();
+    var rates = intlRates();
 
     if (!prices) {
       $('updatedAt').textContent = '시세 없음';
@@ -491,41 +516,37 @@
   function renderDomestic() {
     if (!domestic || !domestic.sell) return;
 
-    var buy = domestic.buy || {};
     var sell = domestic.sell;
     var prev = domestic.prevSell;
 
     $('dxAt').textContent = domestic.at ? domestic.at.slice(5, 16) + ' 고시' : '';
 
-    // 1g을 크게, 1돈은 아래에 따로
-    $('dxBuyPure').textContent = won(perGram(buy.pure));
-    $('dxBuyPureDon').textContent = buy.pure ? '1돈(3.75g) ' + won(buy.pure) : ' ';
-    $('dxBuyPureDiff').textContent = ' ';
+    var goldG = perGram(sell.pure);
+    var silverG = perGram(sell.silver);
+    var prevGoldG = perGram(prev ? prev.pure : null);
+    var prevSilverG = perGram(prev ? prev.silver : null);
 
-    $('dxSellPure').textContent = won(perGram(sell.pure));
-    $('dxSellPureDon').textContent = '1돈(3.75g) ' + won(sell.pure);
-    appendDayDiff($('dxSellPureDiff'), '', perGram(sell.pure), perGram(prev ? prev.pure : null));
+    $('dxGoldG').textContent = won(goldG);
+    appendDayDiff($('dxGoldGSub'), '', goldG, prevGoldG);
 
-    $('dxSellSilver').textContent = won(perGram(sell.silver));
-    $('dxSellSilverDon').textContent = '1돈(3.75g) ' + won(sell.silver);
-    appendDayDiff($('dxSellSilverDiff'), '', perGram(sell.silver), perGram(prev ? prev.silver : null));
+    $('dxGoldDon').textContent = won(sell.pure);
+    appendDayDiff($('dxGoldDonSub'), '', sell.pure, prev ? prev.pure : null);
 
-    // 국제 현물가와의 괴리 — 세공비가 안 붙은 '팔 때'로 비교해야 의미가 있다
-    var rates = currentRates();
+    $('dxSilverG').textContent = won(silverG);
+    appendDayDiff($('dxSilverGSub'), '1돈 ' + won(sell.silver), silverG, prevSilverG);
+
+    // 국제 현물가와의 괴리 — 양쪽 다 세금·세공비가 없는 값이라 그대로 비교된다
+    var ir = intlRates();
     var gapEl = $('dxGap');
-    if (rates && rates.gold != null) {
-      var intlG = rates.gold;
-      var sellG = perGram(sell.pure);
-      var gap = ((sellG - intlG) / intlG) * 100;
+    if (ir && ir.gold != null) {
+      var gap = ((goldG - ir.gold) / ir.gold) * 100;
       gapEl.textContent = signedPct(gap);
       gapEl.className = 'price-value ' + clsFor(gap);
-      $('dxGapSub').textContent = '국제 1g ' + won(intlG);
-      $('dxGapSub2').textContent = '차액 ' + signedWon(sellG - intlG) + '/g';
+      $('dxGapSub').textContent = '국제 1g ' + won(ir.gold) + ' · 차액 ' + signedWon(goldG - ir.gold);
     } else {
       gapEl.textContent = '—';
       gapEl.className = 'price-value';
       $('dxGapSub').textContent = ' ';
-      $('dxGapSub2').textContent = ' ';
     }
   }
 
@@ -1569,8 +1590,9 @@
     renderAll();
     refreshPrices(false);
 
+    // 평가손익이 국내 시세에 의존하므로, 도착하면 대시보드까지 다시 그려야 한다
     fetchDomestic()
-      .then(function () { renderDomestic(); renderGoldTrend(); })
+      .then(renderAll)
       .catch(function (err) {
         $('dxAt').textContent = '불러오지 못함';
         console.warn('국내 시세', err);

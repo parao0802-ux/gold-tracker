@@ -43,7 +43,7 @@
   <section class="section" aria-labelledby="h-domestic">
     <div class="section-head">
       <h2 id="h-domestic">국내 금시세 <span class="count" id="dxAt"></span></h2>
-      <p class="section-sub">한국금거래소 고시가입니다. ‘살 때’는 세공비·부가세가 붙은 매장 판매가라 국제 시세보다 훨씬 높고, ‘팔 때’가 실제 금값에 가깝습니다.</p>
+      <p class="section-sub">한국금거래소 고시가 중 <strong>‘팔 때’(매장 매입가)</strong> 기준입니다. 세공비·부가세가 붙지 않은 값이라 실제 금값에 가깝고, 아래 평가손익도 이 시세로 계산합니다.</p>
     </div>
 
     <figure class="card chart-card price-chart">
@@ -65,28 +65,24 @@
 
     <div class="price-grid">
       <article class="price-card price-card-lead">
-        <div class="price-label">순금 · 1g 살 때</div>
-        <div class="price-value" id="dxBuyPure">—</div>
-        <div class="price-meta" id="dxBuyPureDon">&nbsp;</div>
-        <div class="price-meta" id="dxBuyPureDiff">&nbsp;</div>
+        <div class="price-label">순금 24K · 1g</div>
+        <div class="price-value" id="dxGoldG">—</div>
+        <div class="price-meta" id="dxGoldGSub">&nbsp;</div>
       </article>
       <article class="price-card">
-        <div class="price-label">순금 · 1g 팔 때</div>
-        <div class="price-value" id="dxSellPure">—</div>
-        <div class="price-meta" id="dxSellPureDon">&nbsp;</div>
-        <div class="price-meta" id="dxSellPureDiff">&nbsp;</div>
+        <div class="price-label">순금 24K · 1돈 (3.75g)</div>
+        <div class="price-value" id="dxGoldDon">—</div>
+        <div class="price-meta" id="dxGoldDonSub">&nbsp;</div>
       </article>
       <article class="price-card">
-        <div class="price-label">은 · 1g 팔 때</div>
-        <div class="price-value" id="dxSellSilver">—</div>
-        <div class="price-meta" id="dxSellSilverDon">&nbsp;</div>
-        <div class="price-meta" id="dxSellSilverDiff">&nbsp;</div>
+        <div class="price-label">은 · 1g</div>
+        <div class="price-value" id="dxSilverG">—</div>
+        <div class="price-meta" id="dxSilverGSub">&nbsp;</div>
       </article>
       <article class="price-card">
-        <div class="price-label">국제 시세 대비 (팔 때)</div>
+        <div class="price-label">국제 시세 대비</div>
         <div class="price-value" id="dxGap">—</div>
         <div class="price-meta" id="dxGapSub">&nbsp;</div>
-        <div class="price-meta" id="dxGapSub2">&nbsp;</div>
       </article>
     </div>
   </section>
@@ -126,6 +122,7 @@
   <section class="section" aria-labelledby="h-dash">
     <div class="section-head">
       <h2 id="h-dash">투자 현황</h2>
+      <p class="section-sub">국내 ‘팔 때’ 시세 기준입니다 — 지금 매장에 팔면 받는 금액으로 계산합니다.</p>
     </div>
 
     <div class="hero-row">
