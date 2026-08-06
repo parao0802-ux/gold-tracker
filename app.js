@@ -771,6 +771,8 @@
       empty.textContent = isDay
         ? '오늘 고시된 시세가 아직 한 번뿐입니다. 하루에 몇 차례만 고시되므로 오후에 다시 확인해 주세요.'
         : '국내 시세 기록을 불러오는 중…';
+      // 직전 기간의 등락률이 남아 있으면 안내문과 어긋난다
+      sub.textContent = RANGE_LABEL[goldRange] + ' · 표시할 기록이 부족합니다';
       return;
     }
     host.hidden = false;

@@ -14,13 +14,24 @@
 - `refreshPrices()` — 1분마다 자동 호출. gold-api.com(XAU/XAG) + frankfurter.app/open.er-api.com(USD→KRW)에서 실시간 시세를 받아 `prices`에 저장하고 `recordSnapshot()` 호출
 - `recordSnapshot()` — 매 조회 시점의 {시각, 금시세, 은시세, 환율}을 `snapshots` 배열(`localStorage['gold2.snapshots']`)에 누적. 5분 이내 재조회는 마지막 점을 덮어씀. 이 배열이 "오늘 시간대별" 차트와 "자산 추이" 차트의 데이터 원천 — **앱이 열려 있는 동안에만 쌓임** (외부에 분 단위 과거 시세 API가 없어서 그렇게 설계함)
 - `fetchGoldHistory()` — 하루 한 번, NBP(폴란드 중앙은행) API에서 최근 365일 금 고시가(PLN/g) + PLN→KRW 환율을 받아 `goldHist`(`localStorage['gold2.goldHistory']`)에 캐시. 1개월/3개월/1년 차트와 "전일 대비" 계산의 기준
-- `fetchDomestic()` — 국내 고시가. `/api/domestic-gold` 프록시를 통해 받아 `domestic`(`localStorage['gold2.domestic']`)에 10분 TTL로 캐시
+- `fetchDomestic()` — 국내 현재 고시가 + 오늘 시각별. `/api/domestic-gold`에서 받아 `domestic`(`localStorage['gold2.domestic']`)에 10분 TTL로 캐시
+- `fetchDomesticHistory()` — 국내 1년 일별 이력. `/api/domestic-gold?range=year`에서 받아 `domHist`(`localStorage['gold2.domesticHistory']`)에 하루 1회 캐시. **상단 차트의 데이터 원천**
 
 ## 국내 시세 (한국금거래소)
 
 - 원본: `POST https://www.koreagoldx.co.kr/api/price/chart/list`, body `{srchDt:'1', type:'Au', dataDateStart:'YYYY.MM.DD', dataDateEnd:'YYYY.MM.DD'}`
-  - 응답 `list[]`는 **최신순**. 필드: `s_pure`/`p_pure`(순금 살때/팔때, **1돈=3.75g 기준**), `s_silver`/`p_silver`(은), `p_18k`, `p_14k`, `date`
+  - 응답 `list[]`는 **최신순**. 필드: `s_pure`/`p_pure`(순금 살때/팔때, **1돈=3.75g 기준**), `s_silver`/`p_silver`(은), `p_18k`, `p_14k`, `date`(시각 포함)
   - 하루 여러 차례 갱신됨 (공공데이터포털 "일반상품시세정보"는 하루 1회라 이쪽을 택함)
+  - 1년 범위도 그대로 받아짐(약 201KB, 314일치). 프록시가 날짜별 마지막 값만 남겨 **13KB로 줄여서** 내려줌
+
+### 프록시 엔드포인트 (`api/domestic-gold.js`)
+| 요청 | 응답 | 엣지 캐시 |
+|---|---|---|
+| `/api/domestic-gold` | `at`, `buy`, `sell`, `prevSell`, `today[]`(오늘 시각별) | 5분 |
+| `/api/domestic-gold?range=year` | `history[]` = `{d,s,p}` 일별, 오래된 순 | 6시간 |
+
+### 단위 규칙 (중요)
+원본은 **전부 1돈(3.75g) 기준**이다. 화면은 국제 시세와 맞추려고 **1g을 기본 단위로** 쓰므로 `perGram()`으로 3.75를 나눠 표시하고, 1돈 금액은 카드의 둘째 줄에 따로 적는다. 차트 y축도 1g 기준.
 - **CORS가 막혀 있어 브라우저에서 직접 호출 불가** (preflight 403, `Access-Control-Allow-Origin` 없음) → `api/domestic-gold.js` 서버리스 프록시 필수. 엣지에서 `s-maxage=300`으로 캐시해 원본 부하를 줄임
 - `sw.js`가 같은 출처 GET을 캐시하므로 **`/api/`는 캐시 제외** 처리함 (안 하면 시세가 고정됨)
 - 공식 API가 아니라 사이트 내부 엔드포인트라, 사이트 개편 시 깨질 수 있음. 깨지면 `renderDomestic()`은 조용히 넘어가고 국제 시세만 표시됨
@@ -36,6 +47,15 @@
 - **팔 때**(매장 매입가)는 딜러 마진이 빠져 국제 대비 약 **−2.9%** — 즉 "김치프리미엄"으로 국내가 항상 비싸다고 단정하면 틀림
 - 괴리율 카드는 세공비가 없는 **팔 때 기준**으로 계산함 (`renderDomestic()`)
 - 평가손익 계산 자체는 여전히 **국제 시세 기준**. 사용자가 "둘 다 보여주기"를 택해 표시만 추가한 것
+
+## 화면 구성 (2026-08-06 개편)
+
+위에서부터: **① 국내 금시세 → ② 실시간 국제 시세 → ③ 투자 현황 → ④ 매수 기록**
+
+- 차트는 **하나뿐**이고 국내 시세 섹션에 속한다. 데이터는 `domHist`(국내 팔 때, 1g). 기간 탭 `오늘/1개월/3개월/1년`
+  - `오늘` 탭은 로컬 스냅샷이 아니라 **원본이 주는 시각별 고시가**(`domestic.today`)를 쓴다. 하루 2~4회만 고시되므로 오전엔 점이 1개뿐이라 안내문이 뜨는 게 정상
+- `goldHist`(NBP)는 **더 이상 차트에 안 쓰인다.** 국제 시세 카드의 "전일 대비" 계산에만 쓰임 → NBP가 실패해도 국내 차트를 건드리지 않도록 `init()`에서 분리해 둠 (되돌리지 말 것)
+- `snapshots`는 여전히 "자산 추이" 차트에만 쓰인다
 
 ## 최근 작업 (2026-07-27 세션)
 
