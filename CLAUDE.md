@@ -34,7 +34,7 @@
 - `apps-script/` — **이 작업과 무관한 사용자의 기존 미커밋 폴더.** 건드리지 말 것
 
 ## 데이터 흐름
-- `refreshPrices()` — 1분마다 자동 호출. gold-api.com(XAU/XAG) + frankfurter.app/open.er-api.com(USD→KRW)에서 실시간 시세를 받아 `prices`에 저장하고 `recordSnapshot()` 호출
+- `refreshPrices()` — 1분마다 자동 호출. gold-api.com(XAU/XAG) + frankfurter.dev/open.er-api.com(USD→KRW)에서 실시간 시세를 받아 `prices`에 저장하고 `recordSnapshot()` 호출
 - `recordSnapshot()` — 매 조회 시점의 {시각, 금시세, 은시세, 환율}을 `snapshots` 배열(`localStorage['gold2.snapshots']`)에 누적. 5분 이내 재조회는 마지막 점을 덮어씀. 이 배열이 "오늘 시간대별" 차트와 "자산 추이" 차트의 데이터 원천 — **앱이 열려 있는 동안에만 쌓임** (외부에 분 단위 과거 시세 API가 없어서 그렇게 설계함)
 - `fetchGoldHistory()` — 하루 한 번, NBP(폴란드 중앙은행) API에서 최근 365일 금 고시가(PLN/g) + PLN→KRW 환율을 받아 `goldHist`(`localStorage['gold2.goldHistory']`)에 캐시. 1개월/3개월/1년 차트와 "전일 대비" 계산의 기준
 - `fetchDomestic()` — 국내 현재 고시가 + 오늘 시각별. `/api/domestic-gold`에서 받아 `domestic`(`localStorage['gold2.domestic']`)에 10분 TTL로 캐시
@@ -130,6 +130,17 @@
 ## 안드로이드 설치형 앱 관련
 - 사용자가 "어제" 안드로이드 폰에 PWA를 설치했다고 하는데, 그 시점엔 이 프로젝트가 Vercel에 배포되기 전이라 **어떤 주소를 가리키고 있었는지 알 수 없음** (사용자도 기억 못 함). 위 프로덕션 URL로 재설치하도록 안내함.
 - `sw.js`는 같은 출처 요청에 대해 stale-while-revalidate 캐싱을 씀 — 배포 직후엔 캐시된 이전 화면이 한 번 보이고, 백그라운드 갱신 후 재실행하면 반영됨. 캐시 버전은 `sw.js`의 `CACHE = 'gold-tracker-v1'` — 강제 무효화하려면 이 문자열을 올려야 함 (현재는 안 올림)
+
+## 환율 API 도메인 이전 (2026-09-20, 조치 완료)
+
+`api.frankfurter.app`이 **`api.frankfurter.dev/v1`로 이전**됐다. 구 도메인은 301 리다이렉트만 돌려주는데
+**리다이렉트 응답에 `Access-Control-Allow-Origin`이 없어서** 브라우저 fetch가 CORS 에러로 끊긴다
+(curl로는 301이 그냥 보여서 CORS 문제로 오해하기 쉬움 — 실제로는 도메인 이전임).
+
+- 고친 곳: `app.js`의 `fetchFx()`(실시간 USD→KRW), `fetchPlnKrw()`의 예비 경로(PLN→KRW)
+- 응답 형식은 **동일**하다. `latest`는 `from`/`to`, 시계열은 `base`/`symbols` 파라미터 그대로 쓰면 된다
+- 겉으로는 멀쩡해 보였던 이유: 실시간 환율은 `open.er-api.com` 예비로 자동 전환됐고,
+  과거 PLN→KRW는 NBP가 1차라 frankfurter까지 갈 일이 없었음. 매 조회마다 실패 요청만 한 번씩 낭비되던 상태
 
 ## 알려진 한계 (설계상 의도된 것, 버그 아님)
 - 은/환율은 일별 공식 과거 시세 API가 없어서 "전일 대비"가 로컬 스냅샷에 의존 — 새 기기/새 브라우저에서는 한동안 표시 안 됨

@@ -48,9 +48,9 @@
 | 데이터 | 출처 | 비고 |
 |---|---|---|
 | 금·은 현물가 (USD/oz) | `api.gold-api.com` | API 키 불필요 |
-| 원/달러 환율 | `api.frankfurter.app` | ECB 고시 기준 |
+| 원/달러 환율 | `api.frankfurter.dev` | ECB 고시 기준 |
 | 환율 예비 | `open.er-api.com` | 위 API 실패 시 자동 전환 |
-| 과거 금시세 (1년) | `api.nbp.pl` + `api.frankfurter.app` | 아래 설명 참고 |
+| 과거 금시세 (1년) | `api.nbp.pl` + `api.frankfurter.dev` | 아래 설명 참고 |
 
 시세를 받아오지 못하면 마지막으로 받은 값을 그대로 표시하고 상단에 알림이 뜹니다.
 

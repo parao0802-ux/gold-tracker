@@ -178,7 +178,7 @@
   }
 
   function fetchFx() {
-    return getJSON('https://api.frankfurter.app/latest?from=USD&to=KRW')
+    return getJSON('https://api.frankfurter.dev/v1/latest?from=USD&to=KRW')
       .then(function (d) {
         if (!d || !d.rates || !d.rates.KRW) throw new Error('환율 응답 형식 오류');
         return { fx: d.rates.KRW, fxDate: d.date, fxSource: 'ECB 기준' };
@@ -275,7 +275,7 @@
       })
       .catch(function () {
         return tagged('PLN→KRW 환율',
-          getJSON('https://api.frankfurter.app/' + start + '..' + end + '?base=PLN&symbols=KRW')
+          getJSON('https://api.frankfurter.dev/v1/' + start + '..' + end + '?base=PLN&symbols=KRW')
         ).then(function (d) {
           var map = {};
           Object.keys(d && d.rates || {}).forEach(function (k) { map[k] = d.rates[k].KRW; });
