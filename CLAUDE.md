@@ -31,7 +31,6 @@
 - `styles.css` — 전체 스타일, CSS 변수로 라이트/다크 테마 토큰 관리 (`:root`, `prefers-color-scheme`, `[data-theme]`)
 - `api/domestic-gold.js` — Vercel 서버리스 함수. 한국금거래소 고시가 프록시 (아래 "국내 시세" 참고)
 - `manifest.webmanifest`, `sw.js`, `icons/` — PWA(설치형 앱) 지원
-- `apps-script/` — **이 작업과 무관한 사용자의 기존 미커밋 폴더.** 건드리지 말 것
 
 ## 데이터 흐름
 - `refreshPrices()` — 1분마다 자동 호출. gold-api.com(XAU/XAG) + frankfurter.dev/open.er-api.com(USD→KRW)에서 실시간 시세를 받아 `prices`에 저장하고 `recordSnapshot()` 호출
